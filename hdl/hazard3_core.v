@@ -909,6 +909,33 @@ end else begin: no_muldiv
 end
 endgenerate
 
+// Floating point (Zfinx)
+
+generate
+if (EXTENSION_ZFINX) begin: has_fpu
+	hazard3_fpu #(
+		.PIPE_ADDMUL  (FPU_PIPE_ADDMUL),
+		.PIPE_DIVSQRT (FPU_PIPE_DIVSQRT),
+		.PIPE_NONCOMP (FPU_PIPE_NONCOMP),
+		.PIPE_CONV    (FPU_PIPE_CONV)
+	) fpu (
+		.clk        (clk),
+		.rst_n      (rst_n),
+		.op         (5'd0),
+		.rm         (3'd0),
+		.frm        (3'd0),
+		.op_vld     (1'b0),
+		.op_rdy     (),
+		.op_kill    (1'b0),
+		.op_a       (x_rs1_bypass),
+		.op_b       (x_rs2_bypass),
+		.result     (),
+		.flags      (),
+		.result_vld ()
+	);
+end
+endgenerate
+
 // Branch handling
 
 // For JALR, the LSB of the result must be cleared by hardware
