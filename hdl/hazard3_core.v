@@ -417,6 +417,7 @@ reg                  xm_no_pc_increment;
 reg                  xm_sleep_wfi;
 reg                  xm_sleep_block;
 reg                  xm_delay_irq_entry_on_ls_stagex;
+reg  [4:0]           xm_fpu_fflags;
 
 // ----------------------------------------------------------------------------
 // Stall logic
@@ -483,6 +484,7 @@ end
 
 wire x_stall_on_fence;
 wire x_stall_muldiv;
+wire x_stall_fpu;
 wire x_jump_req;
 
 assign x_stall =
@@ -493,6 +495,7 @@ assign x_stall =
 	x_stall_on_raw ||
 	x_stall_on_fence ||
 	x_stall_muldiv ||
+	x_stall_fpu ||
 	bus_aph_req_d && !bus_aph_ready_d ||
 	x_jump_req && !f_jump_rdy;
 
@@ -914,10 +917,35 @@ end else begin: no_muldiv
 end
 endgenerate
 
-// Floating point (Zfinx)
+// Floating point (Zfinx). Blocking, like the sequential multiply/divide: one
+// operation in flight, the instruction stalls in X until the result is valid.
+
+wire [W_DATA-1:0] x_fpu_result;
+wire [4:0]        x_fpu_flags;
+wire              x_fpu_rm_illegal;
+wire [2:0]        x_fpu_frm;
 
 generate
 if (EXTENSION_ZFINX) begin: has_fpu
+	wire x_fpu_op_vld;
+	wire x_fpu_op_rdy;
+	wire x_fpu_result_vld;
+
+	reg x_fpu_posted;
+	always @ (posedge clk or negedge rst_n)
+		if (!rst_n)
+			x_fpu_posted <= 1'b0;
+		else
+			x_fpu_posted <= (x_fpu_posted || (x_fpu_op_vld && x_fpu_op_rdy)) && x_stall;
+
+	wire x_fpu_kill = m_trap_enter_soon;
+
+	// Dynamic rounding mode (rm = 111) with a reserved frm value
+	assign x_fpu_rm_illegal = d_aluop == ALUOP_FPU && &d_funct3_32b && x_fpu_frm > 3'd4;
+
+	assign x_fpu_op_vld = d_aluop == ALUOP_FPU
+		&& !(x_fpu_posted || x_stall_on_raw || x_fpu_kill || x_fpu_rm_illegal);
+
 	hazard3_fpu #(
 		.PIPE_ADDMUL  (FPU_PIPE_ADDMUL),
 		.PIPE_DIVSQRT (FPU_PIPE_DIVSQRT),
@@ -926,18 +954,28 @@ if (EXTENSION_ZFINX) begin: has_fpu
 	) fpu (
 		.clk        (clk),
 		.rst_n      (rst_n),
-		.op         (5'd0),
-		.rm         (3'd0),
-		.frm        (3'd0),
-		.op_vld     (1'b0),
-		.op_rdy     (),
-		.op_kill    (1'b0),
+		.op         (d_fpuop),
+		.rm         (d_funct3_32b),
+		.frm        (x_fpu_frm),
+		.op_vld     (x_fpu_op_vld),
+		.op_rdy     (x_fpu_op_rdy),
+		.op_kill    (x_fpu_kill),
 		.op_a       (x_rs1_bypass),
 		.op_b       (x_rs2_bypass),
-		.result     (),
-		.flags      (),
-		.result_vld ()
+		.result     (x_fpu_result),
+		.flags      (x_fpu_flags),
+		.result_vld (x_fpu_result_vld)
 	);
+
+	assign x_stall_fpu = x_fpu_op_vld || (d_aluop == ALUOP_FPU && !x_fpu_result_vld);
+
+end else begin: no_fpu
+
+	assign x_fpu_result = {W_DATA{1'b0}};
+	assign x_fpu_flags = 5'h00;
+	assign x_fpu_rm_illegal = 1'b0;
+	assign x_stall_fpu = 1'b0;
+
 end
 endgenerate
 
@@ -1153,6 +1191,7 @@ wire [W_EXCEPT-1:0] x_except =
 	x_trig_break                                             ? EXCEPT_EBREAK         :
 	x_jump_req_unchecked && x_jump_misaligned                ? EXCEPT_INSTR_MISALIGN :
 	x_csr_illegal_access                                     ? EXCEPT_INSTR_ILLEGAL  :
+	x_fpu_rm_illegal                                         ? EXCEPT_INSTR_ILLEGAL  :
 	|EXTENSION_A && x_unaligned_addr &&  d_memop_is_amo      ? EXCEPT_STORE_ALIGN    :
 	|EXTENSION_A && x_amo_phase == 3'h4 && x_unaligned_addr  ? EXCEPT_STORE_ALIGN    :
 	|EXTENSION_A && x_amo_phase == 3'h4                      ? EXCEPT_STORE_FAULT    :
@@ -1183,6 +1222,9 @@ wire m_delay_irq_entry = xm_delay_irq_entry_on_ls_stagex ||
 // are excluded as these only apply to CSR instructions.
 wire m_csr_access_mask_early = m_trap_enter_soon || fd_cir_break_any;
 wire m_csr_access_mask = m_csr_access_mask_early || x_stall;
+
+// Flags of an FPU instruction in M, which commits unless it carries an exception
+wire [4:0] m_fpu_fflags = xm_fpu_fflags & {5{xm_except == EXCEPT_NONE}};
 
 wire m_pwr_allow_clkgate;
 wire m_pwr_allow_power_down;
@@ -1275,8 +1317,8 @@ hazard3_csr #(
 	.clear_excl_on_trap_exit    (m_clear_excl_on_trap_exit),
 	.trap_wfi                   (x_trap_wfi),
 	.instr_ret                  (x_instr_ret),
-	.fpu_fflags_accrue          (5'h00),
-	.fpu_frm                    (/* unused */),
+	.fpu_fflags_accrue          (m_fpu_fflags),
+	.fpu_frm                    (x_fpu_frm),
 	.mhartid_val                (mhartid_val),
 	.eco_version                (eco_version)
 );
@@ -1300,9 +1342,11 @@ always @ (posedge clk or negedge rst_n) begin
 		xm_rs2 <= {W_REGADDR{1'b0}};
 		xm_rd <= {W_REGADDR{1'b0}};
 		xm_no_pc_increment <= 1'b0;
+		xm_fpu_fflags <= 5'h00;
 	end else begin
 		unblock_out <= 1'b0;
 		if (!m_stall) begin
+			xm_fpu_fflags <= x_except == EXCEPT_NONE && d_aluop == ALUOP_FPU ? x_fpu_flags : 5'h00;
 			xm_rs1 <= REGADDR_MASK & d_rs1;
 			xm_rs2 <= REGADDR_MASK & d_rs2;
 			xm_rd  <= REGADDR_MASK & d_rd;
@@ -1327,6 +1371,7 @@ always @ (posedge clk or negedge rst_n) begin
 				xm_sleep_wfi        <= 1'b0;
 				xm_sleep_block      <= 1'b0;
 				unblock_out         <= 1'b0;
+				xm_fpu_fflags       <= 5'h00;
 			end
 		end else if (bus_dph_err_d) begin
 			// First phase of 2-phase AHB5 error response. Pass the exception along on
@@ -1402,6 +1447,7 @@ always @ (posedge clk or negedge rst_n) begin
 			|EXTENSION_A && x_amo_phase == 3'h3     ? mw_result         :
 			|MUL_FASTER  && x_use_fast_mul          ? m_fast_mul_result :
 			|EXTENSION_M && d_aluop == ALUOP_MULDIV ? x_muldiv_result   :
+			|EXTENSION_ZFINX && d_aluop == ALUOP_FPU ? x_fpu_result     :
 			                                          x_alu_result;
 		xm_addr_align <= x_addr_sum[1:0];
 	end
