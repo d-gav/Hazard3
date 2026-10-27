@@ -275,6 +275,7 @@ wire [W_ALUSRC-1:0]  d_alusrc_b;
 wire [W_ALUOP-1:0]   d_aluop;
 wire [W_MEMOP-1:0]   d_memop;
 wire [W_MULOP-1:0]   d_mulop;
+wire [W_FPUOP-1:0]   d_fpuop;
 wire [W_BCOND-1:0]   d_branchcond;
 wire [W_ADDR-1:0]    d_addr_offs;
 wire                 d_addr_is_regoffs;
@@ -352,6 +353,10 @@ hazard3_decode #(
 	.d_aluop                 (d_aluop),
 	.d_memop                 (d_memop),
 	.d_mulop                 (d_mulop),
+	.d_fpuop                 (d_fpuop),
+	.d_rs1_f                 (/* unused */),
+	.d_rs2_f                 (/* unused */),
+	.d_rd_f                  (/* unused */),
 	.d_csr_ren               (d_csr_ren),
 	.d_csr_wen               (d_csr_wen),
 	.d_csr_wtype             (d_csr_wtype),

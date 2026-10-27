@@ -59,6 +59,11 @@ module hazard3_decode #(
 	output reg  [W_ALUOP-1:0]   d_aluop,
 	output reg  [W_MEMOP-1:0]   d_memop,
 	output reg  [W_MULOP-1:0]   d_mulop,
+	output reg  [W_FPUOP-1:0]   d_fpuop,
+	// Register file of each operand, 1 = float. Zfinx: all integer.
+	output wire                 d_rs1_f,
+	output wire                 d_rs2_f,
+	output wire                 d_rd_f,
 	output reg                  d_csr_ren,
 	output reg                  d_csr_wen,
 	output reg  [1:0]           d_csr_wtype,
@@ -81,6 +86,10 @@ module hazard3_decode #(
 `include "hazard3_ops.vh"
 
 localparam HAVE_CSR = CSR_M_MANDATORY || CSR_M_TRAP || CSR_COUNTER;
+
+assign d_rs1_f = 1'b0;
+assign d_rs2_f = 1'b0;
+assign d_rd_f  = 1'b0;
 
 // ----------------------------------------------------------------------------
 
@@ -330,6 +339,7 @@ reg  [W_ALUSRC-1:0]  raw_alusrc_b;
 reg  [W_ALUOP-1:0]   raw_aluop;
 reg  [W_MEMOP-1:0]   raw_memop;
 reg  [W_MULOP-1:0]   raw_mulop;
+reg  [W_FPUOP-1:0]   raw_fpuop;
 reg                  raw_csr_ren;
 reg                  raw_csr_wen;
 reg  [1:0]           raw_csr_wtype;
@@ -343,6 +353,9 @@ reg                  raw_sleep_unblock;
 reg                  raw_fence_i;
 reg                  raw_fence_d;
 
+// rm = 101 and 110 are reserved. DYN (111) is checked against frm in X.
+wire d_fp_rm_rsvd = d_instr[14:12] == 3'b101 || d_instr[14:12] == 3'b110;
+
 always @ (*) begin
 	// Assign some defaults
 	raw_rs1 = d_instr[19:15];
@@ -354,6 +367,7 @@ always @ (*) begin
 	raw_aluop = ALUOP_ADD;
 	raw_memop = MEMOP_NONE;
 	raw_mulop = M_OP_MUL;
+	raw_fpuop = FPUOP_ADD;
 	raw_csr_ren = 1'b0;
 	raw_csr_wen = 1'b0;
 	raw_csr_wtype = CSR_WTYPE_W;
@@ -517,6 +531,25 @@ always @ (*) begin
 	`RVOPC_MRET:      if (HAVE_CSR && m_mode)    begin raw_except = EXCEPT_MRET;   raw_rs2 = X0; raw_rs1 = X0; raw_rd = X0;                                                 end else begin d_invalid_32bit = 1'b1; end
 	`RVOPC_WFI:       if (HAVE_CSR && !trap_wfi) begin raw_sleep_wfi = 1'b1;       raw_rs2 = X0; raw_rs1 = X0; raw_rd = X0;                                                 end else begin d_invalid_32bit = 1'b1; end
 
+	`RVOPC_FADD_S:    if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_ADD;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FSUB_S:    if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_SUB;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FMUL_S:    if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_MUL;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FDIV_S:    if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_DIV;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FSQRT_S:   if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_SQRT;    raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FSGNJ_S:   if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_SGNJ;                   end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FSGNJN_S:  if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_SGNJ;                   end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FSGNJX_S:  if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_SGNJ;                   end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FMIN_S:    if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_MINMAX;                 end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FMAX_S:    if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_MINMAX;                 end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FCVT_W_S:  if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CVT_W;   raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FCVT_WU_S: if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CVT_WU;  raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FEQ_S:     if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CMP;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FLT_S:     if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CMP;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FLE_S:     if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CMP;                    end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FCLASS_S:  if (EXTENSION_ZFINX)                  begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CLASS;   raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FCVT_S_W:  if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CVT_S;   raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+	`RVOPC_FCVT_S_WU: if (EXTENSION_ZFINX && !d_fp_rm_rsvd) begin raw_aluop = ALUOP_FPU; raw_fpuop = FPUOP_CVT_SU;  raw_rs2 = X0;  end else begin d_invalid_32bit = 1'b1; end
+
 	default:          begin d_invalid_32bit = 1'b1; end
 	endcase
 
@@ -542,6 +575,7 @@ always @ (*) begin
 	d_aluop           = raw_aluop;
 	d_memop           = raw_memop;
 	d_mulop           = raw_mulop;
+	d_fpuop           = raw_fpuop;
 	d_csr_ren         = raw_csr_ren;
 	d_csr_wen         = raw_csr_wen;
 	d_csr_wtype       = raw_csr_wtype;
@@ -570,7 +604,7 @@ always @ (*) begin
 		d_fence_i         = 1'b0;
 		d_fence_d         = 1'b0;
 
-		if (EXTENSION_M)
+		if (EXTENSION_M || EXTENSION_ZFINX)
 			d_aluop = ALUOP_ADD;
 
 		if (d_except_instr_bus_fault)

@@ -17,6 +17,7 @@ localparam ALUOP_SRA     = 6'h0a;
 localparam ALUOP_SLL     = 6'h0b;
 localparam ALUOP_MULDIV  = 6'h0c;
 localparam ALUOP_RS2     = 6'h0d; // differs from AND/OR/XOR in [1:0]
+localparam ALUOP_FPU     = 6'h0e;
 // Bitmanip ALU operations (some also used by AMOs):
 localparam ALUOP_SHXADD  = 6'h20;
 localparam ALUOP_CLZ     = 6'h23;
@@ -122,3 +123,20 @@ localparam M_OP_DIV    = 3'h4;
 localparam M_OP_DIVU   = 3'h5;
 localparam M_OP_REM    = 3'h6;
 localparam M_OP_REMU   = 3'h7;
+
+// Operations for Zfinx: {op_mod, FPnew operation}. The instruction's rm field
+// selects the variant of SGNJ (J/JN/JX), MINMAX (MIN/MAX) and CMP (LE/LT/EQ).
+
+localparam FPUOP_ADD     = 5'h02;
+localparam FPUOP_SUB     = 5'h12;
+localparam FPUOP_MUL     = 5'h03;
+localparam FPUOP_DIV     = 5'h04;
+localparam FPUOP_SQRT    = 5'h05;
+localparam FPUOP_SGNJ    = 5'h06;
+localparam FPUOP_MINMAX  = 5'h07;
+localparam FPUOP_CMP     = 5'h08;
+localparam FPUOP_CLASS   = 5'h09;
+localparam FPUOP_CVT_W   = 5'h0b; // fcvt.w.s
+localparam FPUOP_CVT_WU  = 5'h1b; // fcvt.wu.s
+localparam FPUOP_CVT_S   = 5'h0c; // fcvt.s.w
+localparam FPUOP_CVT_SU  = 5'h1c; // fcvt.s.wu
