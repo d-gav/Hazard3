@@ -101,6 +101,13 @@ localparam HSIZE_BYTE  = 3'd0;
 
 localparam [4:0] REGADDR_MASK = {~|EXTENSION_E, 4'hf};
 
+// Elaboration-time check: instantiating an undefined module stops the build.
+generate
+if (|EXTENSION_F && |EXTENSION_ZFINX) begin: config_error_f_and_zfinx
+	hazard3_config_error_extension_f_and_zfinx_are_exclusive err ();
+end
+endgenerate
+
 wire debug_mode;
 assign dbg_halted = DEBUG_SUPPORT && debug_mode;
 assign dbg_running = DEBUG_SUPPORT && !debug_mode;

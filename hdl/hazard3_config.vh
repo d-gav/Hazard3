@@ -85,6 +85,14 @@ parameter EXTENSION_ZIFENCEI  = 0,
 // EXTENSION_ZILSD: Support for Zilsd load/store pair instructions
 parameter EXTENSION_ZILSD     = 0,
 
+// EXTENSION_ZFINX: Support for Zfinx single-precision floating point in the
+// integer registers, using an FPnew (CVFPU) instance. No fused multiply-add.
+parameter EXTENSION_ZFINX     = 0,
+
+// EXTENSION_F: Reserved for the F extension. Not implemented; must not be set
+// together with EXTENSION_ZFINX.
+parameter EXTENSION_F         = 0,
+
 // ----------------------------------------------------------------------------
 // Custom RISC-V extensions
 
@@ -210,6 +218,14 @@ parameter REDUCED_BYPASS      = 0,
 // MULDIV_UNROLL: Bits per clock for multiply/divide circuit, if present. Must
 // be a power of 2.
 parameter MULDIV_UNROLL       = 1,
+
+// FPU_PIPE_*: Pipeline registers in each FPnew operation group, if Zfinx is
+// present: add/mul, divide/sqrt, non-computational (sign-inject, min/max,
+// compare, classify) and conversion.
+parameter FPU_PIPE_ADDMUL     = 1,
+parameter FPU_PIPE_DIVSQRT    = 0,
+parameter FPU_PIPE_NONCOMP    = 1,
+parameter FPU_PIPE_CONV       = 1,
 
 // MUL_FAST: Use single-cycle multiply circuit for MUL instructions, retiring
 // to stage 3. The sequential multiply/divide circuit is still used for MULH*
