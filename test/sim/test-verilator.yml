@@ -23,8 +23,8 @@ simulators:
       - fpu_smoke
   verilator_zfinx:
     make_dir:  tb_verilator
-    make_args: CONFIG=zfinx DOTF=tb_fpu.f BUILD_DIR=build-tb-zfinx
-    exec:      tb_verilator/tb_fpu-zfinx
+    make_args: CONFIG=zfinx DOTF=tb_fpu.f BUILD_DIR=build-tb-zfinx TBEXEC=tb-zfinx
+    exec:      tb_verilator/tb-zfinx
     march:     rv32ima_zca_zcb_zcmp_zicsr_zifencei_zba_zbb_zbkb_zbs_zfinx
   verilator_default_rve:
     make_dir:  tb_verilator
