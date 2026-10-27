@@ -174,6 +174,11 @@ localparam H3MISA         = 12'hbf1; // Hazard3 M-mode ISA identification regist
 // ----------------------------------------------------------------------------
 // U-mode CSRs
 
+// Floating-point CSRs (Zfinx)
+localparam FFLAGS         = 12'h001;
+localparam FRM            = 12'h002;
+localparam FCSR           = 12'h003;
+
 // Read-only aliases of M-mode counter CSRs:
 localparam CYCLE          = 12'hc00;
 localparam TIME           = 12'hc01;

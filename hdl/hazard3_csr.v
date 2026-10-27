@@ -129,6 +129,10 @@ module hazard3_csr #(
 	output wire                clear_excl_on_trap_exit,
 	output wire                trap_wfi,
 	input  wire                instr_ret,
+	// Floating point: flags of the FPU instruction committing in stage M
+	// (OR'd into fflags), and the dynamic rounding mode for stage X.
+	input  wire [4:0]          fpu_fflags_accrue,
+	output wire [2:0]          fpu_frm,
 	input  wire [W_DATA-1:0]   mhartid_val,
 	input  wire [3:0]          eco_version
 );
@@ -263,6 +267,35 @@ end
 // execution, and nops do not trap, so in debug mode we allow WFIs but
 // immediately wake them.
 assign trap_wfi = mstatus_tw && !(debug_mode || m_mode);
+
+// Floating-point CSRs. Pending flags from M are visible to reads, and an
+// explicit write (from the younger instruction in X) wins over accrual.
+
+reg [4:0] fcsr_fflags;
+reg [2:0] fcsr_frm;
+wire [4:0] fflags_rdata = fcsr_fflags | fpu_fflags_accrue;
+assign fpu_frm = fcsr_frm;
+
+always @ (posedge clk or negedge rst_n) begin
+	if (!rst_n) begin
+		fcsr_fflags <= 5'h00;
+		fcsr_frm <= 3'h0;
+	end else if (!EXTENSION_ZFINX) begin
+		fcsr_fflags <= 5'h00;
+		fcsr_frm <= 3'h0;
+	end else begin
+		if (wen && (addr == FFLAGS || addr == FCSR)) begin
+			fcsr_fflags <= wdata_update[4:0];
+		end else begin
+			fcsr_fflags <= fflags_rdata;
+		end
+		if (wen && addr == FRM) begin
+			fcsr_frm <= wdata_update[2:0];
+		end else if (wen && addr == FCSR) begin
+			fcsr_frm <= wdata_update[7:5];
+		end
+	end
+end
 
 reg [XLEN-1:0] mscratch;
 
@@ -1109,6 +1142,19 @@ always @ (*) begin
 
 	// ------------------------------------------------------------------------
 	// U-mode CSRs
+
+	FFLAGS: if (EXTENSION_ZFINX) begin
+		decode_match = 1'b1;
+		rdata = {27'h0, fflags_rdata};
+	end
+	FRM: if (EXTENSION_ZFINX) begin
+		decode_match = 1'b1;
+		rdata = {29'h0, fcsr_frm};
+	end
+	FCSR: if (EXTENSION_ZFINX) begin
+		decode_match = 1'b1;
+		rdata = {24'h0, fcsr_frm, fflags_rdata};
+	end
 
 	// The read-only counters are always visible to M mode, and are visible to
 	// U mode if the corresponding mcounteren bit is set.

@@ -4,6 +4,11 @@ simulators:
     make_args: CONFIG=default BUILD_DIR=build-tb-default
     exec:      tb_verilator/tb
     march:     rv32ima_zca_zcb_zcmp_zicsr_zifencei_zba_zbb_zbkb_zbs
+    excluded_tests:
+      # Zfinx-only tests
+      - fpu_csr
+      - fpu_decode
+      - fpu_smoke
   verilator_late_mul:
     make_dir:  tb_verilator
     make_args: CONFIG=late_mul BUILD_DIR=build-tb-late_mul
@@ -12,6 +17,10 @@ simulators:
     excluded_tests:
       # Zkt not supported with sequential mulh/mulhsu
       - h3misa
+      # Zfinx-only tests
+      - fpu_csr
+      - fpu_decode
+      - fpu_smoke
   verilator_zfinx:
     make_dir:  tb_verilator
     make_args: CONFIG=zfinx DOTF=tb_fpu.f BUILD_DIR=build-tb-zfinx
@@ -42,6 +51,10 @@ simulators:
       # Reports E instead of I, so fails:
       - h3misa
       - csr_id
+      # Zfinx-only tests
+      - fpu_csr
+      - fpu_decode
+      - fpu_smoke
   verilator_min:
     make_dir:  tb_verilator
     make_args: CONFIG=min BUILD_DIR=build-tb-min

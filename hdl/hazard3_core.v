@@ -1275,6 +1275,8 @@ hazard3_csr #(
 	.clear_excl_on_trap_exit    (m_clear_excl_on_trap_exit),
 	.trap_wfi                   (x_trap_wfi),
 	.instr_ret                  (x_instr_ret),
+	.fpu_fflags_accrue          (5'h00),
+	.fpu_frm                    (/* unused */),
 	.mhartid_val                (mhartid_val),
 	.eco_version                (eco_version)
 );
