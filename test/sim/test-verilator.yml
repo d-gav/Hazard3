@@ -6,8 +6,13 @@ simulators:
     march:     rv32ima_zca_zcb_zcmp_zicsr_zifencei_zba_zbb_zbkb_zbs
     excluded_tests:
       # Zfinx-only tests
+      - fpu_bypass
       - fpu_csr
       - fpu_decode
+      - fpu_fault_kill
+      - fpu_fflags
+      - fpu_irq_kill
+      - fpu_muldiv_mix
       - fpu_smoke
   verilator_late_mul:
     make_dir:  tb_verilator
@@ -18,8 +23,13 @@ simulators:
       # Zkt not supported with sequential mulh/mulhsu
       - h3misa
       # Zfinx-only tests
+      - fpu_bypass
       - fpu_csr
       - fpu_decode
+      - fpu_fault_kill
+      - fpu_fflags
+      - fpu_irq_kill
+      - fpu_muldiv_mix
       - fpu_smoke
   verilator_zfinx:
     make_dir:  tb_verilator
@@ -52,8 +62,13 @@ simulators:
       - h3misa
       - csr_id
       # Zfinx-only tests
+      - fpu_bypass
       - fpu_csr
       - fpu_decode
+      - fpu_fault_kill
+      - fpu_fflags
+      - fpu_irq_kill
+      - fpu_muldiv_mix
       - fpu_smoke
   verilator_min:
     make_dir:  tb_verilator
